@@ -24,3 +24,8 @@ jobs:
 
     - name: Install Poetry 
       run: curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python
+      
+    - name: Poetry export requirements
+      run: |
+        ~/.poetry/bin/poetry export -f requirements.txt > requirements.txt
+        cat requirements.txt
