@@ -1,0 +1,13 @@
+[run]
+source =
+    app
+
+omit =
+    app/manage.py
+    app/config/asgi.py
+    app/config/wsgi.py
+    app/*/migrations/*
+
+[report]
+exclude_lines =
+    def __str__

@@ -1,375 +1,175 @@
+import json
 import os
 import re
 import time
 import urllib
 
+import requests
 from django.core.files import File
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException
 
+from config import settings
 from config.settings import MEDIA_ROOT
+from members.models import SocialLogin
 from posts.crawling.find_urls import find_apartment_urls, find_urls
+
 from ..models import SalesForm, PostAddress, SecuritySafetyFacilities, OptionItem, \
-    MaintenanceFee, RoomOption, RoomSecurity, PostRoom, Broker, PostImage, AdministrativeDetail
-from bs4 import BeautifulSoup
+    MaintenanceFee, RoomOption, RoomSecurity, PostRoom, Broker, PostImage, AdministrativeDetail, ComplexInformation, \
+    ComplexImage, RecommendComplex
+
+KAKAO_APP_ID = settings.KAKAO_APP_ID
 
 
 def postFind():
-    driver = webdriver.Chrome('/Users/mac/projects/ChromeWebDriver/chromedriver')
-    # driver = webdriver.Chrome('/Users/moonpeter/Desktop/Selenium/chromedriver')
+    POSTS_DIR = os.path.join(MEDIA_ROOT, '.posts')
 
+    if not os.path.exists(POSTS_DIR):
+        os.makedirs(POSTS_DIR, exist_ok=True)
+
+    # driver = webdriver.Chrome('/Users/mac/projects/ChromeWebDriver/chromedriver')
+    driver = webdriver.Chrome('/Users/moonpeter/Desktop/Selenium/chromedriver')
+    SocialLogin.start()
     # 다방 성수동 매물 url
     # url_all_list = find_apartment_urls()
-    # url_all_list += find_urls()
-    # print('url_all_list len >>', type(url_all_list), '\n')
-    # print('url_all_list >>', url_all_list, '\n')
-    url_all_list = ['https://www.dabangapp.com/room/5e42b371a11d530866144078',
-                    'https://www.dabangapp.com/room/5e1d6b0773d078168238f1e0',
-                    'https://www.dabangapp.com/room/5e1548a8de8c7b54c2c917dc',
-                    'https://www.dabangapp.com/room/5e914f0dc38c0c4ce5a8318c',
-                    'https://www.dabangapp.com/room/5e8d35bd0cf5a5412d6da2ea',
-                    'https://www.dabangapp.com/room/5e914cb3cc41dc1f46a7b6c3',
-                    'https://www.dabangapp.com/room/5e79c60d84be5e7ef8e96461',
-                    'https://www.dabangapp.com/room/5e914f0455e11d4ce5fbd245',
-                    'https://www.dabangapp.com/room/5e8e7cf99d891c3904c57951',
-                    'https://www.dabangapp.com/room/5e6c6cced93974472c59c6b8',
-                    'https://www.dabangapp.com/room/5e8aa7fcffe08e36cb56b4ce',
-                    'https://www.dabangapp.com/room/5e746c5855cade1ff3b2c900',
-                    'https://www.dabangapp.com/room/5e72c8819888397a3638a424',
-                    'https://www.dabangapp.com/room/5e8c62242dca726fb8181a93',
-                    'https://www.dabangapp.com/room/5e7bfd7b290cb26ec37087b2',
-                    'https://www.dabangapp.com/room/5e8d248ea8c2115d1680b1ce',
-                    'https://www.dabangapp.com/room/5e819e0e2ce1b126d9c88027',
-                    'https://www.dabangapp.com/room/5e7ad2422247205b43406c05',
-                    'https://www.dabangapp.com/room/5e8ae5dd2a140b19ad1152a0',
-                    'https://www.dabangapp.com/room/5e9166c6243bed3a047b44c7',
-                    'https://www.dabangapp.com/room/5e7ad24a5809285b43dd6156',
-                    'https://www.dabangapp.com/room/5e783d0a32767735792361c6',
-                    'https://www.dabangapp.com/room/5e8acea9ce4f3e4ec40793d4',
-                    'https://www.dabangapp.com/room/5e7c13ee116bff1a5c1b0fe5',
-                    'https://www.dabangapp.com/room/5e7ecdf238420950529b2564',
-                    'https://www.dabangapp.com/room/5e9172a37c5daf1246d1e0b8',
-                    'https://www.dabangapp.com/room/5e7c7166244673686b638419',
-                    'https://www.dabangapp.com/room/5e6b164652c2753d337b4179',
-                    'https://www.dabangapp.com/room/5e8aa4778e97eb10a32212da',
-                    'https://www.dabangapp.com/room/5e7c36033dc51b7e45ba7b1f',
-                    'https://www.dabangapp.com/room/5e8ea6167f954b7088471d4c',
-                    'https://www.dabangapp.com/room/5e7c52fea861501550e7e8a3',
-                    'https://www.dabangapp.com/room/5e90026d91315870a836a8b2',
-                    'https://www.dabangapp.com/room/5e72ec87fdf308458942257f',
-                    'https://www.dabangapp.com/room/5e7307f8017a955b71279100',
-                    'https://www.dabangapp.com/room/5e7ac6c2cbf0df08eb1d61ff',
-                    'https://www.dabangapp.com/room/5e71ab6ddeb6c10f9e935e0a',
-                    'https://www.dabangapp.com/room/5e7efa460358215304f057de',
-                    'https://www.dabangapp.com/room/5e756335964ed823fc81e0f8',
-                    'https://www.dabangapp.com/room/5e7c2481a50ed345f63c82d2',
-                    'https://www.dabangapp.com/room/5e7ec95111e1011a7ec7e203',
-                    'https://www.dabangapp.com/room/5e81a1b829cfcc06f34d07af',
-                    'https://www.dabangapp.com/room/5e8eab2db72bfe784f349eb9',
-                    'https://www.dabangapp.com/room/5e72e2cf83e008062fb55d61',
-                    'https://www.dabangapp.com/room/5e868a4369367f4ba04cbd9a',
-                    'https://www.dabangapp.com/room/5e819d03b701a426d98a42ea',
-                    'https://www.dabangapp.com/room/5e914f0ba6d8364ce5f7703e',
-                    'https://www.dabangapp.com/room/5e72ea274f0cc61c30fd8f36',
-                    'https://www.dabangapp.com/room/5e71de843a4ea4174fa94faa',
-                    'https://www.dabangapp.com/room/5e916938513ff8418a568eed',
-                    'https://www.dabangapp.com/room/5e8d3248d7b3d87429517725',
-                    'https://www.dabangapp.com/room/5e8ac8522eccde46164a92d3',
-                    'https://www.dabangapp.com/room/5e7acbcb77c7d1101fafdd2f',
-                    'https://www.dabangapp.com/room/5e6f1211e8174c468ae971a6',
-                    'https://www.dabangapp.com/room/5e7ae6cdfccb516fda9bd67a',
-                    'https://www.dabangapp.com/room/5e6f0a419f0dec7f7c305a0f',
-                    'https://www.dabangapp.com/room/5e72c4a3811444445417df08',
-                    'https://www.dabangapp.com/room/5e83f3eaee50375db934125d',
-                    'https://www.dabangapp.com/room/5e8d636cdc19e6397ec46d1e',
-                    'https://www.dabangapp.com/room/5e8ac3f8d5f8af65d9d3516d',
-                    'https://www.dabangapp.com/room/5e81beab3da96b3251ddf7eb',
-                    'https://www.dabangapp.com/room/5e8fed22182fb750ac3ed90c',
-                    'https://www.dabangapp.com/room/5e81aed624e07a1c823c3867',
-                    'https://www.dabangapp.com/room/5e9161db119d0812848e85f6',
-                    'https://www.dabangapp.com/room/5e8a9c86b3222941bb9d625c',
-                    'https://www.dabangapp.com/room/5e7c7162b2dfed686b7f24ed',
-                    'https://www.dabangapp.com/room/5e7afd8e99ef8a59f3a5afd9',
-                    'https://www.dabangapp.com/room/5e7c715f773e22686b15ee5c',
-                    'https://www.dabangapp.com/room/5e8aaa98521b226396ccdbbf',
-                    'https://www.dabangapp.com/room/5e9001ff37e57c46f8c99f48',
-                    'https://www.dabangapp.com/room/5e8be7742fa6cd03e13c708b',
-                    'https://www.dabangapp.com/room/5e9006e3bf780d2cb29e8d0f',
-                    'https://www.dabangapp.com/room/5e8293bb31c88476954f7213',
-                    'https://www.dabangapp.com/room/5e8bddbea4736e4e7859a818',
-                    'https://www.dabangapp.com/room/5e914f1527b8e84ce5955ba0',
-                    'https://www.dabangapp.com/room/5e9151a6dfdeb4412ec75483',
-                    'https://www.dabangapp.com/room/5e919ebcf6898d237c673810',
-                    'https://www.dabangapp.com/room/5e916e0e2398e0656787dea5',
-                    'https://www.dabangapp.com/room/5e7ae6101b845266b335b028',
-                    'https://www.dabangapp.com/room/5e8ab2a116fdf52419a4663e',
-                    'https://www.dabangapp.com/room/5e82935402a1f77695464902',
-                    'https://www.dabangapp.com/room/5e91707f35f33d6d89aed70a',
-                    'https://www.dabangapp.com/room/5e8ae5d9ff822c19ad4d0911',
-                    'https://www.dabangapp.com/room/5e8d213f2e87de0bdd660b28',
-                    'https://www.dabangapp.com/room/5e7c1d58c603891137e21986',
-                    'https://www.dabangapp.com/room/5e8bdd0323820f30a80c8b75',
-                    'https://www.dabangapp.com/room/5e8d689d895f204256bc67c5',
-                    'https://www.dabangapp.com/room/5e8e7a0bb2d08c242d00ef0e',
-                    'https://www.dabangapp.com/room/5e6f433852da4f5e153acde8',
-                    'https://www.dabangapp.com/room/5e71aec6af6ef63ffd56a238',
-                    'https://www.dabangapp.com/room/5e71ab25234ea90f9e3684a6',
-                    'https://www.dabangapp.com/room/5e857bc1b4e0795b8a572512',
-                    'https://www.dabangapp.com/room/5e8ec761980d512302d88076',
-                    'https://www.dabangapp.com/room/5e8812ec29ec2d636a1d92ca',
-                    'https://www.dabangapp.com/room/5e6f0f71bcde1c6b698fdc41',
-                    'https://www.dabangapp.com/room/5e84665fdec4512c8b64192a',
-                    'https://www.dabangapp.com/room/5e914cb88bd3631f46a09e81',
-                    'https://www.dabangapp.com/room/5e6f0ca8c990b036c43197c1',
-                    'https://www.dabangapp.com/room/5e70ab27caeda435adaadb1f',
-                    'https://www.dabangapp.com/room/5e71a7797741213bb1749b0d',
-                    'https://www.dabangapp.com/room/5e75868ff87c48462892dcd0',
-                    'https://www.dabangapp.com/room/5e9151a226ca77412e85f0b4',
-                    'https://www.dabangapp.com/room/5e9001d9004a6b46f8e283bc',
-                    'https://www.dabangapp.com/room/5e8812e4b1d930636a6d8e56',
-                    'https://www.dabangapp.com/room/5e8d77eec22836604787ccb7',
-                    'https://www.dabangapp.com/room/5e8ac6d37f0d924616315449',
-                    'https://www.dabangapp.com/room/5e916e46b360f06567cedb09',
-                    'https://www.dabangapp.com/room/5e71de3ebd9532174f661894',
-                    'https://www.dabangapp.com/room/5e7b21cb77efb279fa89895b',
-                    'https://www.dabangapp.com/room/5e7c1ff47c26285ff0f5b216',
-                    'https://www.dabangapp.com/room/5e901025f3ff9d77d2ee73f7',
-                    'https://www.dabangapp.com/room/5e8bd952c5710167918ef972',
-                    'https://www.dabangapp.com/room/5e7c30a8febb732852667dc1',
-                    'https://www.dabangapp.com/room/5e8fe7146ee1804a3f82a6c4',
-                    'https://www.dabangapp.com/room/5e70733be64ca9665e5a9759',
-                    'https://www.dabangapp.com/room/5e8e87131a056b7de982d60c',
-                    'https://www.dabangapp.com/room/5e8ab2d3e5b96224197411d8',
-                    'https://www.dabangapp.com/room/5e6f33247c85125a56950333',
-                    'https://www.dabangapp.com/room/5e9168ebfd958b418a717e6a',
-                    'https://www.dabangapp.com/room/5e818950279b951d62cb4760',
-                    'https://www.dabangapp.com/room/5e71959aa3f116628a7b5917',
-                    'https://www.dabangapp.com/room/5e7026c96db9eb6cbda862e9',
-                    'https://www.dabangapp.com/room/5e917082011fd86d896240c1',
-                    'https://www.dabangapp.com/room/5e6f0bf4aa08bd36c473df19',
-                    'https://www.dabangapp.com/room/5e7c1d79e58bcf11370fb44e',
-                    'https://www.dabangapp.com/room/5e8c2e7efbefce1fe5167abd',
-                    'https://www.dabangapp.com/room/5e819de582c86726d99a8ee5',
-                    'https://www.dabangapp.com/room/5e7c323bccafa13d5abd89ba',
-                    'https://www.dabangapp.com/room/5e8ead5550fe9507241a4fb6',
-                    'https://www.dabangapp.com/room/5e8ff5dc57abf65d42b86d86',
-                    'https://www.dabangapp.com/room/5e8ab40e3d0b3003b99b42f7',
-                    'https://www.dabangapp.com/room/5e900e32810cf44966ac6385',
-                    'https://www.dabangapp.com/room/5e6ae2e92f0a64540a1f6be7',
-                    'https://www.dabangapp.com/room/5e7431f250356c4b2e118c0c',
-                    'https://www.dabangapp.com/room/5e85790803871a2aa7b0afdb',
-                    'https://www.dabangapp.com/room/5e900e1e00708f49663fd402',
-                    'https://www.dabangapp.com/room/5e8edff144048f63141f001c',
-                    'https://www.dabangapp.com/room/5e9146a83fb2521b2c49ecee',
-                    'https://www.dabangapp.com/room/5e6b431f9dbf8b2583721312',
-                    'https://www.dabangapp.com/room/5e86f4b7e302b11c09fae313',
-                    'https://www.dabangapp.com/room/5e7ae14bc6b15433d28cf62f',
-                    'https://www.dabangapp.com/room/5e86a3c6c3bafd57a1dd6a77',
-                    'https://www.dabangapp.com/room/5e8e8645245cf677356da8aa',
-                    'https://www.dabangapp.com/room/5e7068cae8747815b23d81e4',
-                    'https://www.dabangapp.com/room/5e8ae5ed851dda19ad8b717d',
-                    'https://www.dabangapp.com/room/5e8154e74cd9607c21f9d10c',
-                    'https://www.dabangapp.com/room/5e8aac2b54de271a14e4c32e',
-                    'https://www.dabangapp.com/room/5e856698c18a88387dfe7d10',
-                    'https://www.dabangapp.com/room/5e814fd64039fb0ab049a6d8',
-                    'https://www.dabangapp.com/room/5e8d6e4dd2170c747784db4e',
-                    'https://www.dabangapp.com/room/5e8a945fee38c71dd70b0cb0',
-                    'https://www.dabangapp.com/room/5e82b23608fecc73e61f4d63',
-                    'https://www.dabangapp.com/room/5e7d6469c88b2e4d3edf63ab',
-                    'https://www.dabangapp.com/room/5e7ed445b9ca165a0abe5c37',
-                    'https://www.dabangapp.com/room/5e81884c1e326a0478fe722b',
-                    'https://www.dabangapp.com/room/5e7c0280a77db85208d4fc64',
-                    'https://www.dabangapp.com/room/5e82d5bb15e93834534e5f52',
-                    'https://www.dabangapp.com/room/5e7c3a23c85f5376a60e8fc9',
-                    'https://www.dabangapp.com/room/5e8c1f6ef9ae1d50cbdf754b',
-                    'https://www.dabangapp.com/room/5e82b22081a85e73e67a5dda',
-                    'https://www.dabangapp.com/room/5e7ac451a96dd2389c19493c',
-                    'https://www.dabangapp.com/room/5e8812e58751ff636a485f05',
-                    'https://www.dabangapp.com/room/5e8550aabea97b7a22578734',
-                    'https://www.dabangapp.com/room/5e8830b78321b32902cade76',
-                    'https://www.dabangapp.com/room/5e81610280554a6b432242ca',
-                    'https://www.dabangapp.com/room/5e8e76abab03dd31e56dcb71',
-                    'https://www.dabangapp.com/room/5e7d692a742312505a5190d4',
-                    'https://www.dabangapp.com/room/5e79ac00e7b2ac67af850dcf',
-                    'https://www.dabangapp.com/room/5e61eb268c45fb4368c1a174',
-                    'https://www.dabangapp.com/room/5dea1592bfd6ae3b8ca406ce',
-                    'https://www.dabangapp.com/room/5e6f0321aeeb591276221de3',
-                    'https://www.dabangapp.com/room/5e8c3d4a27ee572fb48cf07d',
-                    'https://www.dabangapp.com/room/5e9034ed4ef6ae3420ccbfb7',
-                    'https://www.dabangapp.com/room/5e81a2cd918a981d67c29e72',
-                    'https://www.dabangapp.com/room/5e82f884d770ee57c7f381cf',
-                    'https://www.dabangapp.com/room/5d64b386c2523c16a42f3d07',
-                    'https://www.dabangapp.com/room/5e71d3578c6d8b3b99af9f05',
-                    'https://www.dabangapp.com/room/5e1e71f971ee814758fbcdc3',
-                    'https://www.dabangapp.com/room/5df1eb02d5887d7930797275',
-                    'https://www.dabangapp.com/room/5d9c54de54340c1c977f92d8',
-                    'https://www.dabangapp.com/room/5e4a2310faa1647355958b95',
-                    'https://www.dabangapp.com/room/5e4a1c16cc7257682001c153',
-                    'https://www.dabangapp.com/room/579704dc6f1b3a094aec5f57',
-                    'https://www.dabangapp.com/room/5e71af111d650303159f0348',
-                    'https://www.dabangapp.com/room/5e4a2ece3982731d6e5b52d7',
-                    'https://www.dabangapp.com/room/5e58feb4bab02104722d161f',
-                    'https://www.dabangapp.com/room/5e4643a33e033020a5e53f8d',
-                    'https://www.dabangapp.com/room/5df1ea294eac3d7bfabcba03',
-                    'https://www.dabangapp.com/room/5e72fa154944a63dbd73fe69',
-                    'https://www.dabangapp.com/room/5e60b25b0cf47a0ed2719309',
-                    'https://www.dabangapp.com/room/5e72c6b3f4b5b86fe3c8f385',
-                    'https://www.dabangapp.com/room/5e33edce22c6252a97b9a7d0',
-                    'https://www.dabangapp.com/room/5e7047cb6896ee286b243867',
-                    'https://www.dabangapp.com/room/5e86edc1914a1d1d7ef51ac2',
-                    'https://www.dabangapp.com/room/5e84034e55c6882f23bd690e',
-                    'https://www.dabangapp.com/room/5e843dc1031dc142631601df',
-                    'https://www.dabangapp.com/room/5b0e2eea5ed74c7355786247',
-                    'https://www.dabangapp.com/room/5e3befe9e242632ffa06bc85',
-                    'https://www.dabangapp.com/room/5e72be16b85b0e6fc9a7a7cc',
-                    'https://www.dabangapp.com/room/5e8f01b3cec5d415e90d4cf6',
-                    'https://www.dabangapp.com/room/5e82ffe2f112a16b1126ca5e',
-                    'https://www.dabangapp.com/room/5e572e5757f09c5638273c20',
-                    'https://www.dabangapp.com/room/5d9ec99fc9a3dd4b29e3efcd',
-                    'https://www.dabangapp.com/room/5d8ee7ac7fa17e2f2267239a',
-                    'https://www.dabangapp.com/room/5e843a4d99a00c17e3bc85c4',
-                    'https://www.dabangapp.com/room/5813063a2e6f462359315117',
-                    'https://www.dabangapp.com/room/5e8591a5880dfc22b9e0970f',
-                    'https://www.dabangapp.com/room/5dd4f8a12bda4e34e57d0447',
-                    'https://www.dabangapp.com/room/5e6759cdb979bc71e9afeab2',
-                    'https://www.dabangapp.com/room/5e0f3718d96bea310291e09a',
-                    'https://www.dabangapp.com/room/5e33bb027bfab713de85a774',
-                    'https://www.dabangapp.com/room/5e72bf479c854870aa02c352',
-                    'https://www.dabangapp.com/room/5e6b586d27e43b013e9ba597',
-                    'https://www.dabangapp.com/room/5e3845a2d7447c3fabc904e3',
-                    'https://www.dabangapp.com/room/5dede10eeea3c95b23de6927',
-                    'https://www.dabangapp.com/room/5e86a6ebd985b83a8fa2a24e',
-                    'https://www.dabangapp.com/room/5e9193985526841afcfe4133',
-                    'https://www.dabangapp.com/room/5e4b99581a00fb457ff0ef63',
-                    'https://www.dabangapp.com/room/5e816497deec6b3194f63705',
-                    'https://www.dabangapp.com/room/5e9192b1afa34c2320474d61',
-                    'https://www.dabangapp.com/room/5cbea76d71e887479063ac59',
-                    'https://www.dabangapp.com/room/5e8ace5e7702c43897f858ac',
-                    'https://www.dabangapp.com/room/5d652a2654311c3fa94d6ee2',
-                    'https://www.dabangapp.com/room/5d9af15512468a5ee4605669',
-                    'https://www.dabangapp.com/room/5e8ea363d86a754325dcc5ae',
-                    'https://www.dabangapp.com/room/5e91566b0f96861e75b1b60f',
-                    'https://www.dabangapp.com/room/5e2f8a15fd3dc349995a75d7',
-                    'https://www.dabangapp.com/room/5d1aaaf7f8675e2ee22fd097',
-                    'https://www.dabangapp.com/room/5ddd53a496557639e70c825e',
-                    'https://www.dabangapp.com/room/5e4cc48194bb1c050fceb147',
-                    'https://www.dabangapp.com/room/5d89b7deb3be6628c11e79d4',
-                    'https://www.dabangapp.com/room/5da19747bf668c3e1d36d1af',
-                    'https://www.dabangapp.com/room/5e4ceabfac08d4432ca2e889',
-                    'https://www.dabangapp.com/room/5e7997c5619be26de13760d1',
-                    'https://www.dabangapp.com/room/5e8581abf11589776af13eac',
-                    'https://www.dabangapp.com/room/5e19204fd1e8ba59c8b5d7f4',
-                    'https://www.dabangapp.com/room/5df9e1954c971122317f86f2',
-                    'https://www.dabangapp.com/room/5e7c52a336e37e1fa669f93e',
-                    'https://www.dabangapp.com/room/5e8c077fc6addb21400412cb',
-                    'https://www.dabangapp.com/room/5e4a1a9866bcc56a163dc945',
-                    'https://www.dabangapp.com/room/5db78bcdeaa0e9359de71c0f',
-                    'https://www.dabangapp.com/room/5e5f7d649d2d5f4a00a465af',
-                    'https://www.dabangapp.com/room/5e3cfc049d81167ed198e975',
-                    'https://www.dabangapp.com/room/5e60b894ea6fdf19bd4dd16b',
-                    'https://www.dabangapp.com/room/581ae8a8f7f1fe26fd7d65f0',
-                    'https://www.dabangapp.com/room/5b442f6802c75b70610826a9',
-                    'https://www.dabangapp.com/room/5d652a2654311c3fa94d6ee2',
-                    'https://www.dabangapp.com/room/5d9af15512468a5ee4605669',
-                    'https://www.dabangapp.com/room/5e8ea363d86a754325dcc5ae',
-                    'https://www.dabangapp.com/room/5e91566b0f96861e75b1b60f',
-                    'https://www.dabangapp.com/room/5e2f8a15fd3dc349995a75d7',
-                    'https://www.dabangapp.com/room/5d1aaaf7f8675e2ee22fd097',
-                    'https://www.dabangapp.com/room/5ddd53a496557639e70c825e',
-                    'https://www.dabangapp.com/room/5e4cc48194bb1c050fceb147',
-                    'https://www.dabangapp.com/room/5d89b7deb3be6628c11e79d4',
-                    'https://www.dabangapp.com/room/5da19747bf668c3e1d36d1af',
-                    'https://www.dabangapp.com/room/5e4ceabfac08d4432ca2e889',
-                    'https://www.dabangapp.com/room/5e7997c5619be26de13760d1',
-                    'https://www.dabangapp.com/room/5e8581abf11589776af13eac',
-                    'https://www.dabangapp.com/room/5e19204fd1e8ba59c8b5d7f4',
-                    'https://www.dabangapp.com/room/5df9e1954c971122317f86f2',
-                    'https://www.dabangapp.com/room/5e7c52a336e37e1fa669f93e',
-                    'https://www.dabangapp.com/room/5e8c077fc6addb21400412cb',
-                    'https://www.dabangapp.com/room/5e4a1a9866bcc56a163dc945',
-                    'https://www.dabangapp.com/room/5db78bcdeaa0e9359de71c0f',
-                    'https://www.dabangapp.com/room/5e5f7d649d2d5f4a00a465af',
-                    'https://www.dabangapp.com/room/5e3cfc049d81167ed198e975',
-                    'https://www.dabangapp.com/room/5e60b894ea6fdf19bd4dd16b',
-                    'https://www.dabangapp.com/room/581ae8a8f7f1fe26fd7d65f0',
-                    'https://www.dabangapp.com/room/5b442f6802c75b70610826a9',
-                    'https://www.dabangapp.com/room/5e577d972d69ed5194f1eefa',
-                    'https://www.dabangapp.com/room/5e268a6db427ae304ec68e3f',
-                    'https://www.dabangapp.com/room/582fb3c519e7cb55ecce2534',
-                    'https://www.dabangapp.com/room/5e659c74f2a3ac415c367599',
-                    'https://www.dabangapp.com/room/5e6343c4869f5c579367bd0c',
-                    'https://www.dabangapp.com/room/5e84996da1218276a29e79cc',
-                    'https://www.dabangapp.com/room/5e83fbfaa2b0597ae67aaf10',
-                    'https://www.dabangapp.com/room/5e89aadd49dee06a434e251e',
-                    'https://www.dabangapp.com/room/5e47792095a5332028d312b8',
-                    'https://www.dabangapp.com/room/5e8d36c5643ef26fe5d7a23a',
-                    'https://www.dabangapp.com/room/5df9d39d26a54f7ee4cd126d',
-                    'https://www.dabangapp.com/room/5c0e5ccffc1a300f6fbeedaa',
-                    'https://www.dabangapp.com/room/5e477835ee4ea021e01ba0af',
-                    'https://www.dabangapp.com/room/5e8bed42a6a79a728f5ac21d',
-                    'https://www.dabangapp.com/room/5df05b64849a606d56f017e9',
-                    'https://www.dabangapp.com/room/5e3bdb7635fc9778dae9d35a',
-                    'https://www.dabangapp.com/room/5e843414848c0b61944e50c5',
-                    'https://www.dabangapp.com/room/5d07c75b3742fe7603630b43',
-                    'https://www.dabangapp.com/room/5e7c21ceab438338a1b79479',
-                    'https://www.dabangapp.com/room/5c5d8557e98ed333425a3cb4',
-                    'https://www.dabangapp.com/room/59f3e67dc6cda31e4c4f8b33',
-                    'https://www.dabangapp.com/room/5e69d334d3ac974a856143f1'
-                    ]
+    # print('아파트 단지 url', url_all_list)
+    # officetels = find_urls()
+    # url_all_list += officetels
+    # print('오피스텔 매물', officetels)
+    url_all_list = [
+        #                 # 아파트 종료, 오피스텔 시작
+
+        'https://www.dabangapp.com/room/5ea64b9c2ae69e6277fe6169',
+        'https://www.dabangapp.com/room/5ea7a96c391b300dc3fb6bd2',
+        'https://www.dabangapp.com/room/5e6759cdb979bc71e9afeab2',
+        'https://www.dabangapp.com/room/5e93ec571087be6c9d348d9c',
+        'https://www.dabangapp.com/room/5e996a9b7accce730023773e',
+        'https://www.dabangapp.com/room/5e82f884d770ee57c7f381cf',
+        'https://www.dabangapp.com/room/5e9435995c3ac1609a8fd908',
+        'https://www.dabangapp.com/room/5df1ea294eac3d7bfabcba03',
+        'https://www.dabangapp.com/room/5df1eb02d5887d7930797275',
+        'https://www.dabangapp.com/room/5ea816f32998671e96b1e1ea',
+        'https://www.dabangapp.com/room/5d64b386c2523c16a42f3d07',
+        'https://www.dabangapp.com/room/5e33bb027bfab713de85a774',
+        'https://www.dabangapp.com/room/5ea781059396b45c79af37e2',
+        'https://www.dabangapp.com/room/5e99601abc1a2e63758d1968',
+        'https://www.dabangapp.com/room/5e992d3359f24d63d2c5afc2',
+        'https://www.dabangapp.com/room/5ea67f6826769003b4280354',
+        'https://www.dabangapp.com/room/5e84034e55c6882f23bd690e',
+        'https://www.dabangapp.com/room/5e4b99581a00fb457ff0ef63',
+        'https://www.dabangapp.com/room/5e816497deec6b3194f63705',
+        'https://www.dabangapp.com/room/5ea65cbc38e46c2fdc92a4ef',
+        'https://www.dabangapp.com/room/5ea5b918f8f81035004116ce',
+        'https://www.dabangapp.com/room/5e86edc1914a1d1d7ef51ac2',
+        'https://www.dabangapp.com/room/5e9fbc3505ff823c392d4d3a',
+        'https://www.dabangapp.com/room/5ea0f58193c1372ac2df539f',
+        'https://www.dabangapp.com/room/5e8f01b3cec5d415e90d4cf6',
+        'https://www.dabangapp.com/room/5ea0f5770eea072ac547b418',
+        'https://www.dabangapp.com/room/5e6f0321aeeb591276221de3',
+        'https://www.dabangapp.com/room/5e994fc856dddc1856281d59',
+        'https://www.dabangapp.com/room/5e99104de7921f1d798272a3',
+        'https://www.dabangapp.com/room/5e0f3718d96bea310291e09a',
+        'https://www.dabangapp.com/room/5e967aa03b72e37c4b8e19f4',
+        'https://www.dabangapp.com/room/5e9d038f618ea701e1304f33',
+        'https://www.dabangapp.com/room/5e3845a2d7447c3fabc904e3',
+        'https://www.dabangapp.com/room/5ea64a5363265c685a5f9db0',
+        'https://www.dabangapp.com/room/5e870376f429084ca09bcea6',
+        'https://www.dabangapp.com/room/5e9d03b0eb4f8f27a0b1c0a2',
+        'https://www.dabangapp.com/room/5ea780fb19336f5c7942daf1',
+        'https://www.dabangapp.com/room/5e58feb4bab02104722d161f',
+        'https://www.dabangapp.com/room/5e9efb294b187c5a8beb346f',
+        'https://www.dabangapp.com/room/5e9192b1afa34c2320474d61',
+        'https://www.dabangapp.com/room/5e9034ed4ef6ae3420ccbfb7',
+        'https://www.dabangapp.com/room/5e71af111d650303159f0348',
+        'https://www.dabangapp.com/room/5ea7ba9ef5156f6618c42a7a',
+        'https://www.dabangapp.com/room/5e9a82fd7329a5563a77274e',
+        'https://www.dabangapp.com/room/5e843a4d99a00c17e3bc85c4',
+        'https://www.dabangapp.com/room/5e8ace5e7702c43897f858ac',
+        'https://www.dabangapp.com/room/5ea65cb7aa04a31d3ce76eb4',
+        'https://www.dabangapp.com/room/5e97be37ebb9bb57a7d35d5f',
+        'https://www.dabangapp.com/room/5ea3ce6350f429521fa8f957',
+        'https://www.dabangapp.com/room/5ea78100275cd339f923bbf5',
+        'https://www.dabangapp.com/room/5e9eb0fc7145c11ebb232db9',
+        'https://www.dabangapp.com/room/5d9c54de54340c1c977f92d8',
+        'https://www.dabangapp.com/room/5e9eb9a7db13d21edb07f96e',
+        'https://www.dabangapp.com/room/5ea623a3dada043b6e4619b9',
+        'https://www.dabangapp.com/room/5ea0fcfd27599121780b30b1',
+        'https://www.dabangapp.com/room/5d8ee7ac7fa17e2f2267239a',
+        'https://www.dabangapp.com/room/5e9febd7bf530716fcbf51c5',
+        'https://www.dabangapp.com/room/5e9fd19bdea9fc5a7d8f5173',
+        'https://www.dabangapp.com/room/5e94139c0eb4bb3b5f8d29c4',
+        'https://www.dabangapp.com/room/5ddf97f4224cdd3567cebf9b',
+        'https://www.dabangapp.com/room/5e93d057bc9e1620963edf68',
+        'https://www.dabangapp.com/room/5e9d0381baaea321eaa3e34f',
+        'https://www.dabangapp.com/room/5e3bdb7635fc9778dae9d35a',
+        'https://www.dabangapp.com/room/5ea7a2302db1071c18cc2c5a',
+        'https://www.dabangapp.com/room/5e24669efd66bf3f32346a69',
+        'https://www.dabangapp.com/room/5da19747bf668c3e1d36d1af',
+        'https://www.dabangapp.com/room/5e577d972d69ed5194f1eefa',
+        'https://www.dabangapp.com/room/5c5d8557e98ed333425a3cb4',
+        'https://www.dabangapp.com/room/5e99621f39378058bf1c015e',
+        'https://www.dabangapp.com/room/5e92d088e2f8f970339a1816',
+        'https://www.dabangapp.com/room/5e84996da1218276a29e79cc',
+        'https://www.dabangapp.com/room/5e577c56e868473adfb353ff',
+        'https://www.dabangapp.com/room/5e843414848c0b61944e50c5',
+        'https://www.dabangapp.com/room/5e7997c5619be26de13760d1',
+        'https://www.dabangapp.com/room/5da4831a99f821789dd5a462',
+        'https://www.dabangapp.com/room/5e3ba7b9610c7e1f02caba75',
+        'https://www.dabangapp.com/room/5e8440d00fdecc72da927bf7',
+        'https://www.dabangapp.com/room/5ea29c3daeb3b16acd2297d6',
+        'https://www.dabangapp.com/room/5ea64126035662508bc7f862',
+        'https://www.dabangapp.com/room/5e9a9ccf17b6ea61206f3133',
+        'https://www.dabangapp.com/room/5ea69c3da587b143dda04c7a',
+        'https://www.dabangapp.com/room/5e7866f0485b277642a0bea0',
+        'https://www.dabangapp.com/room/5db78bcdeaa0e9359de71c0f',
+        'https://www.dabangapp.com/room/5e659c74f2a3ac415c367599',
+        'https://www.dabangapp.com/room/5de1e3dcbff13320f9e8c246',
+        'https://www.dabangapp.com/room/5e9960100d9b5158f03c1317',
+        'https://www.dabangapp.com/room/5ddcfaec6e8a987c8a9e65e1',
+        'https://www.dabangapp.com/room/5ea3d81ed930955fb1abd57f',
+        'https://www.dabangapp.com/room/5e6132798c88164b71a43b63',
+        'https://www.dabangapp.com/room/5e9c6094fbacbb09194f76ba',
+        'https://www.dabangapp.com/room/5e7c52a336e37e1fa669f93e',
+        'https://www.dabangapp.com/room/581ae8a8f7f1fe26fd7d65f0',
+        'https://www.dabangapp.com/room/5e8d36c5643ef26fe5d7a23a',
+        'https://www.dabangapp.com/room/5e9d038861e7bf04feff40cc',
+        'https://www.dabangapp.com/room/5e9d039eedc091134efbe315',
+        'https://www.dabangapp.com/room/5ea6b1031de277572db5ccbb',
+        'https://www.dabangapp.com/room/5c8319179435f455bfadb906',
+        'https://www.dabangapp.com/room/5e268a6db427ae304ec68e3f',
+        'https://www.dabangapp.com/room/5e996005faf976637565726a',
+        'https://www.dabangapp.com/room/5ea6bb391406e6250c8352d1',
+        'https://www.dabangapp.com/room/5e61de5954444f17b12b891d',
+        'https://www.dabangapp.com/room/5e9a69580a6e2a1917b16a4f'
+
+    ]
 
     # 각 게시글 조회 시작
-    for post_index, url in enumerate(url_all_list):
-        driver.get(url)
+    for post_index, dabang_url in enumerate(url_all_list):
+        print('############################################# 다음 url \n')
+        print('url 입니다.', dabang_url, '\n')
+        driver.get(dabang_url)
         time.sleep(2)
 
-        # 중개인
-        # Broker
-        try:
-            button = driver.find_element_by_xpath("/html/body/div[1]/div/div[1]/div/ul/li/button")
-            driver.execute_script("arguments[0].click();", button)
-
-            name = driver.find_element_by_xpath('/html/body/div[4]/div/div/div/div[1]/div[1]/h1')
-            name = name.get_attribute('innerText')
-
-            address = driver.find_element_by_xpath('/html/body/div[4]/div/div/div/div[1]/div[1]/p')
-            address = address.get_attribute('innerText')
-
-            manager = driver.find_element_by_xpath('/html/body/div[4]/div/div/div/div[2]/div[2]/p[1]')
-            manager = manager.get_attribute('innerText')
-
-            tel = driver.find_element_by_xpath('/html/body/div[4]/div/div/div/div[2]/div[2]/p[2]')
-            tel = tel.get_attribute('innerText')
-        except NoSuchElementException:
-            manager = driver.find_element_by_xpath('/html/body/div[4]/div/div/div/div/div[2]/p[1]')
-            manager = manager.get_attribute('innerText')
-
-            tel = driver.find_element_by_xpath('/html/body/div[4]/div/div/div/div/div[2]/p[2]')
-            tel = tel.get_attribute('innerText')
-        button = driver.find_element_by_xpath("/html/body/div[4]/div/div/header/button")
-        driver.execute_script("arguments[0].click();", button)
-
-        broker_ins = Broker.objects.get_or_create(
-            name=name,
-            address=address,
-            manager=manager,
-            tel=tel,
-        )
-        # 상세 설명 보기
-        try:
-            button = driver.find_element_by_xpath("/html/body/div[1]/div/div[4]/div/div/button")
-            driver.execute_script("arguments[0].click();", button)
-        except NoSuchElementException:
-            pass
-
-        # 매물 형태
-        time.sleep(2)
         post_type = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/div/ul/li[1]/p/span')
         post_type = post_type.get_attribute('innerText')
 
+        # 상세 더보기 클릭
+        try:
+            button = driver.find_element_by_xpath('/html/body/div[1]/div/div[4]/div/div/button')
+            driver.execute_script("arguments[0].click();", button)
+        except NoSuchElementException:
+            pass
         # 방 정보 설명
         description = driver.find_elements_by_xpath("/html/body/div[1]/div/div[4]/div/div")
         description = description[0].get_attribute("innerText")
         description.replace("\n", "")
+        try:
+            if '접기' in description:
+                description = description.split('접기')
+
+        except IndexError:
+            pass
 
         # 매물 형식
         unrefined_salesform = driver.find_elements_by_xpath('/html/body/div[1]/div/div[1]/div/ul/li[1]/div')
@@ -379,6 +179,171 @@ def postFind():
         salesForm = salesForm.split()
         salesType = salesForm[0]  # sales type
 
+        print(salesType)
+        print(post_type)
+        if salesType == '매매':
+
+            try:
+                btn = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/div/ul/li[3]/button')
+                driver.execute_script("arguments[0].click();", btn)
+
+                href = driver.find_element_by_xpath('/html/body/div[4]/div/div/div/div[1]/a')
+                href = href.get_attribute('href')
+                print(href)
+                driver.get(href)
+                time.sleep(1)
+                # 중개소 정보 더 보기
+                companyName = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[1]/div')
+                print(companyName)
+                companyName = companyName.get_attribute('innerText')
+                print(companyName)
+
+                address = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[8]/div')
+                address = address.get_attribute('innerText')
+                print(address)
+                managerName = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[2]/div')
+                managerName = managerName.get_attribute('innerText')
+                print(managerName)
+                tel = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[3]/div')
+                tel = tel.get_attribute('innerText')
+                print(tel)
+                companyNumber = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[4]/div')
+                companyNumber = companyNumber.get_attribute('innerText')
+                print(companyNumber)
+                brokerage = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[5]/div')
+                brokerage = brokerage.get_attribute('innerText')
+                print(brokerage)
+                dabangCreated_at = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[6]/div')
+                dabangCreated_at = dabangCreated_at.get_attribute('innerText')
+                print(dabangCreated_at)
+                successCount = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[7]/div')
+                successCount = successCount.get_attribute('innerText')
+                print(successCount)
+                image = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/div[1]/div')
+                image = image.get_attribute('class')
+                image = image.split(' ')
+                image = image[1]
+                print(image)
+                photo = driver.execute_script(
+                    f'return window.getComputedStyle(document.querySelector(".{image}"),":after").getPropertyValue("background")')
+                print(photo)
+                test_url = re.findall(r'"(.*?)"', photo)
+                test_url = test_url[0]
+                print(test_url)
+
+            except NoSuchElementException:
+                managerName = driver.find_element_by_xpath('/html/body/div[4]/div/div/div/div/div[2]/p[1]')
+                managerName = managerName.get_attribute('innerText')
+                if '(' in managerName:
+                    managerName = managerName.split('(')
+                    managerName = managerName[0]
+                tel = driver.find_element_by_xpath('/html/body/div[4]/div/div/div/div/div[2]/p[2]')
+                tel = tel.get_attribute('innerText')
+                if '-' in tel:
+                    tel = tel.replace('-', '')
+                companyName = None
+                address = None
+                test_url = None
+                companyNumber = None
+                brokerage = None
+                dabangCreated_at = None
+                successCount = None
+
+
+        else:
+
+            try:
+                btn = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/div/ul/li[4]/button')
+                driver.execute_script("arguments[0].click();", btn)
+
+                href = driver.find_element_by_xpath('/html/body/div[4]/div/div/div/div[1]/a')
+                href = href.get_attribute('href')
+                print(href)
+                driver.get(href)
+                time.sleep(1)
+                # 중개소 정보 더 보기
+                companyName = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[1]/div')
+                print(companyName)
+                companyName = companyName.get_attribute('innerText')
+                print(companyName)
+
+                address = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[8]/div')
+                address = address.get_attribute('innerText')
+                print(address)
+                managerName = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[2]/div')
+                managerName = managerName.get_attribute('innerText')
+                print(managerName)
+                tel = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[3]/div')
+                tel = tel.get_attribute('innerText')
+                print(tel)
+                companyNumber = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[4]/div')
+                companyNumber = companyNumber.get_attribute('innerText')
+                print(companyNumber)
+                brokerage = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[5]/div')
+                brokerage = brokerage.get_attribute('innerText')
+                print(brokerage)
+                dabangCreated_at = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[6]/div')
+                dabangCreated_at = dabangCreated_at.get_attribute('innerText')
+                print(dabangCreated_at)
+                successCount = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/ul/li[7]/div')
+                successCount = successCount.get_attribute('innerText')
+                print(successCount)
+                image = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/div[1]/div')
+                image = image.get_attribute('class')
+                image = image.split(' ')
+                image = image[1]
+                print(image)
+                photo = driver.execute_script(
+                    f'return window.getComputedStyle(document.querySelector(".{image}"),":after").getPropertyValue("background")')
+                print(photo)
+                test_url = re.findall(r'"(.*?)"', photo)
+                test_url = test_url[0]
+                print(test_url)
+
+            except NoSuchElementException:
+                managerName = driver.find_element_by_xpath('/html/body/div[4]/div/div/div/div/div[2]/p[1]')
+                managerName = managerName.get_attribute('innerText')
+                if '(' in managerName:
+                    managerName = managerName.split('(')
+                    managerName = managerName[0]
+                tel = driver.find_element_by_xpath('/html/body/div[4]/div/div/div/div/div[2]/p[2]')
+                tel = tel.get_attribute('innerText')
+                if '-' in tel:
+                    tel = tel.replace('-', '')
+                companyName = None
+                address = None
+                test_url = None
+                companyNumber = None
+                brokerage = None
+                dabangCreated_at = None
+                successCount = None
+        # button = driver.find_element_by_xpath("/html/body/div[4]/div/div/header/button")
+        # driver.execute_script("arguments[0].click();", button)
+
+        broker_ins = Broker.objects.get_or_create(
+            companyName=companyName,
+            address=address,
+            managerName=managerName,
+            tel=tel,
+            image=test_url,
+            companyNumber=companyNumber,
+            brokerage=brokerage,
+            dabangCreated_at=dabangCreated_at,
+            successCount=successCount,
+        )
+        print(broker_ins)
+        # 상세 설명 보기
+        driver.get(dabang_url)
+        print('--')
+        try:
+            button = driver.find_element_by_xpath("/html/body/div[1]/div/div[4]/div/div/button")
+            driver.execute_script("arguments[0].click();", button)
+        except NoSuchElementException:
+            pass
+
+        # 매물 형태
+        time.sleep(2)
+        print('--')
         salesDepositChar = salesForm[1]
         if salesDepositChar.find('원'):
             salesDepositChar = salesDepositChar.replace('원', '')
@@ -391,7 +356,7 @@ def postFind():
         try:
             salesmonthlyChar = salesForm[2]
 
-            salesmonthlyInt = salesmonthlyChar.replace('만원', '0000')
+            salesmonthlyInt = salesmonthlyChar.replace('만원', '')
             salesmonthlyInt = int(salesmonthlyInt)
 
             if salesType == '전세':
@@ -420,11 +385,29 @@ def postFind():
         if not address:
             address = driver.find_elements_by_xpath('/html/body/div[1]/div/div[5]/div/div/p')
 
-        address = address[0].get_attribute('innerText')
+        try:
+            address = address[0].get_attribute('innerText')
+            if '※' in address:
+                address = driver.find_element_by_xpath('/html/body/div[1]/div/div[5]/div[4]/div/p')
 
-        address_ins = PostAddress.objects.create(
-            loadAddress=address
+                address = address.get_attribute('innerText')
+            print('address >>>>>>>>>>>>', address)
+        except NoSuchElementException:
+            address = driver.find_element_by_xpath('/html/body/div[1]/div/div[5]/div[5]/div/p')
+            address = address.get_attribute('innerText')
+
+        # kakao Local API
+        url = f'https://dapi.kakao.com/v2/local/search/address.json?query={address}'
+        res = requests.get(url, headers={'Authorization': f'KakaoAK {KAKAO_APP_ID}'})
+        str_data = res.text
+        json_data = json.loads(str_data)
+        lat = json_data['documents'][0]['x']
+        lng = json_data['documents'][0]['y']
+        print(f'lat, lng >>  {lat} {lng}')
+        address_ins, __ = PostAddress.objects.get_or_create(
+            loadAddress=address,
         )
+        print('address_ins', address_ins)
 
         unrefined_floor = driver.find_elements_by_xpath('/html/body/div[1]/div/div[2]/div/ul/li[1]/div')
         total_floor = unrefined_floor[0].get_attribute('innerText')
@@ -451,27 +434,29 @@ def postFind():
 
         supplyAreaInt = int(supplyAreaInt)
 
-        try:
-            if post_type == '아파트':
-                unrefined_shortRent = driver.find_elements_by_xpath(
-                    '/html/body/div[1]/div/div[5]/div[3]/div/table/tbody/tr/td[5]/p')
-            else:
-                unrefined_shortRent = driver.find_elements_by_xpath(
-                    '/html/body/div[1]/div/div[5]/div[2]/div/table/tbody/tr/td[5]/p')
-                if not unrefined_shortRent:
-                    unrefined_shortRent = driver.find_elements_by_xpath(
-                        '/html/body/div[1]/div/div[5]/div[3]/div/table/tbody/tr/td[4]/p')
-            shortRent = unrefined_shortRent[0].get_attribute('innerText')
-            shortRent = shortRent
-
-            if shortRent == '불가능':
+        if post_type == '아파트':
+            if salesType == '매매':
                 shortRent = False
             else:
-                shortRent = True
+                shortRent = driver.find_elements_by_xpath(
+                    '/html/body/div[1]/div/div[5]/div[3]/div/table/tbody/tr/td[5]/p')
+                shortRent = shortRent[0].get_attribute('innerText')
+        else:
+            if salesType == '매매':
+                shortRent = False
+            else:
+                shortRent = driver.find_elements_by_xpath(
+                    '/html/body/div[1]/div/div[5]/div[2]/div/table/tbody/tr/td[5]/p')
+                if not shortRent:
+                    shortRent = driver.find_elements_by_xpath(
+                        '/html/body/div[1]/div/div[5]/div[3]/div/table/tbody/tr/td[4]/p')
+                shortRent = shortRent[0].get_attribute('innerText')
+        print('shortRent is >>', shortRent)
 
-        except IndexError:
-            # 매매에서는 단기임대가 없음.
-            shortRent = None
+        if shortRent == '불가능':
+            shortRent = False
+        else:
+            shortRent = True
 
         # 관리비 클래스
         try:
@@ -523,40 +508,62 @@ def postFind():
 
         # 관리비 마무리
 
+        parkingPay = None
+        # 주차비 관련
         try:
             if post_type == "아파트":
                 if salesType == "매매":
-                    unrefined_parking = None
+                    parkingDetail = '가능(무료)'
+                    parkingTF = True
                 else:
-                    unrefined_parking = driver.find_elements_by_xpath(
+                    parkingDetail = driver.find_element_by_xpath(
                         '/html/body/div[1]/div/div[5]/div[3]/div/table/tbody/tr/td[4]/p')
-
+                    parkingDetail = parkingDetail.get_attribute('innerText')
             else:
                 if salesType == "매매":
-                    # 일반 주택 매매
                     try:
-                        unrefined_parking = driver.find_elements_by_xpath(
+                        parkingDetail = driver.find_element_by_xpath(
                             "/html/body/div[1]/div/div[5]/div[2]/div/table/tbody/tr/td[3]")
-                    except IndexError:
-                        unrefined_parking = driver.find_elements_by_xpath(
+                    except NoSuchElementException:
+                        parkingDetail = driver.find_element_by_xpath(
                             '/html/body/div[1]/div/div[5]/div[3]/div/table/tbody/tr/td[3]/p')
+                    except IndexError:
+                        parkingDetail = driver.find_element_by_xpath(
+                            '/html/body/div[1]/div/div[5]/div[3]/div/table/tbody/tr/td[3]/p')
+                    parkingDetail = parkingDetail.get_attribute('innerText')
+
                 else:
-                    unrefined_parking = driver.find_elements_by_xpath(
-                        "/html/body/div[1]/div/div[5]/div[2]/div/table/tbody/tr/td[4]/p")
-            parkingDetail = unrefined_parking[0].get_attribute('innerText')
+                    try:
+                        parkingDetail = driver.find_element_by_xpath(
+                            "/html/body/div[1]/div/div[5]/div[2]/div/table/tbody/tr/td[4]/p")
+                        parkingDetail = parkingDetail.get_attribute('innerText')
+                    except NoSuchElementException:
+                        parkingDetail = driver.find_element_by_xpath(
+                            '/html/body/div[1]/div/div[5]/div[3]/div/table/tbody/tr/td[4]/p')
+                        parkingDetail = parkingDetail.get_attribute('innerText')
+
         except IndexError:
-            unrefined_parking = driver.find_elements_by_xpath(
+            unrefined_parking = driver.find_element_by_xpath(
                 '/html/body/div[1]/div/div[5]/div[3]/div/table/tbody/tr/td[4]/p'
             )
             parkingDetail = unrefined_parking[0].get_attribute('innerText')
+
         except TypeError:
             parkingDetail = '불가'
+        if '만' in parkingDetail:
+            parkingDetail = parkingDetail.split('만')
+            parkingDetail = parkingDetail[0]
+            parkingPay = float(parkingDetail)
+            parkingDetail = '문의'
 
-        if parkingDetail == '불가':
-            parkingTF = False
-        else:
+        # parking Tf
+        if parkingDetail == '가능(무료)':
             parkingTF = True
-
+        elif parkingDetail == '문의':
+            parkingTF = True
+        else:
+            parkingTF = False
+        print('parking >>>>>>>>>>>>>', parkingDetail, parkingTF, parkingPay)
         try:
             if not salesType == "매매":
                 if post_type == "아파트":
@@ -605,17 +612,31 @@ def postFind():
 
         if salesType == "매매":
             if post_type == "아파트":
-                moveIn = driver.find_element_by_xpath('/html/body/div[1]/div/div[2]/div/ul/li[7]/div')
+                moveInChar = driver.find_element_by_xpath('/html/body/div[1]/div/div[2]/div/ul/li[7]/div')
             else:
-                moveIn = driver.find_element_by_xpath('/html/body/div[1]/div/div[2]/div/ul/li[7]/div')
+                moveInChar = driver.find_element_by_xpath('/html/body/div[1]/div/div[2]/div/ul/li[7]/div')
         else:
             if post_type == "아파트":
-                moveIn = driver.find_element_by_xpath('/html/body/div[1]/div/div[2]/div/ul/li[9]/div')
+                moveInChar = driver.find_element_by_xpath('/html/body/div[1]/div/div[2]/div/ul/li[9]/div')
             else:
-                moveIn = driver.find_element_by_xpath('/html/body/div[1]/div/div[2]/div/ul/li[9]/div')
-        MoveInChar = moveIn.get_attribute('innerText')
-        # option & sceurity
+                moveInChar = driver.find_element_by_xpath('/html/body/div[1]/div/div[2]/div/ul/li[9]/div')
 
+        moveInChar = moveInChar.get_attribute('innerText')
+        moveInDate = None
+        if '날짜' in moveInChar:
+            pass
+        elif '즉시' in moveInChar:
+            pass
+        elif '2' in moveInChar:
+            moveInChar = moveInChar.replace('.', '-')
+            moveInDate = moveInChar
+            moveInChar = '날짜 협의'
+        else:
+            moveInChar = '날짜 협의'
+
+        print(moveInChar)
+
+        # option & sceurity
         try:
             option_tag = driver.find_element_by_name('option')
             option_tag = option_tag.get_attribute('innerText')
@@ -646,30 +667,30 @@ def postFind():
         # Room option instance create
         if option is not None:
             option_list = []
-            POSTS_IMAGE_DIR = os.path.join(MEDIA_ROOT, f'.posts/.option/')
+            # POSTS_IMAGE_DIR = os.path.join(MEDIA_ROOT, f'.posts/.option/')
             for option_name in option:
-                f = open(os.path.join(POSTS_IMAGE_DIR, f'{option_name}.png'), 'rb')
+                # f = open(os.path.join(POSTS_IMAGE_DIR, f'{option_name}.png'), 'rb')
                 ins = OptionItem.objects.get_or_create(
                     name=option_name,
-                    image=File(f),
+                    # image=File(f),
                 )
-                f.close()
+                # f.close()
 
                 option_list.append(ins[0])
 
         # Security option instance create
         if security is not None:
-            POSTS_IMAGE_DIR = os.path.join(MEDIA_ROOT, f'.posts/.security/')
+            # POSTS_IMAGE_DIR = os.path.join(MEDIA_ROOT, f'.posts/.security/')
             security_list = []
             print('안전 시설은 ', security)
 
             for security_name in security:
-                f = open(os.path.join(POSTS_IMAGE_DIR, f'{security_name}.png'), 'rb')
+                # f = open(os.path.join(POSTS_IMAGE_DIR, f'{security_name}.png'), 'rb')
                 ins = SecuritySafetyFacilities.objects.get_or_create(
                     name=security_name,
-                    image=File(f),
+                    # image=File(f),
                 )
-                f.close()
+                # f.close()
 
                 security_list.append(ins[0])
                 print('security >>>', ins[0])
@@ -778,12 +799,233 @@ def postFind():
         else:
             complete = None
 
+        # 아파트 단지정보 크롤링 시작
+        if post_type == '아파트':
+            complex_detail_url = driver.find_element_by_xpath('/html/body/div[1]/div/div[5]/div[2]/div/a')
+            complex_detail_url = complex_detail_url.get_attribute('href')
+            driver.get(complex_detail_url)
+            time.sleep(2)
+            apart_name = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/div/div/h1')
+            apart_name = apart_name.get_attribute('innerText')
+            print('apart_name', apart_name)
+
+            made = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/div/ul/li[1]/p[2]')
+            made = made.get_attribute('innerText')
+            print('made', made)
+
+            total_citizen = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/div/ul/li[2]/p[2]')
+            total_citizen = total_citizen.get_attribute('innerText')
+            print('total_citizen', total_citizen)
+
+            personal_park = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/div/ul/li[3]/p[2]')
+            personal_park = personal_park.get_attribute('innerText')
+            if ' ' in personal_park:
+                personal_park = personal_park.split(' ')
+                personal_park = personal_park[1]
+            print('personal_park', personal_park)
+
+            # 총 동 수
+            total_number = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/div/ul/li[4]/p[2]')
+            total_number = total_number.get_attribute('innerText')
+            print('total_number', total_number)
+
+            heating_system = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/div/ul/li[5]/p[2]')
+            heating_system = heating_system.get_attribute('innerText')
+            print('heating_system', heating_system)
+
+            min_max_floor = driver.find_element_by_xpath('/html/body/div[1]/div/div[1]/div/ul/li[6]/p[2]')
+            min_max_floor = min_max_floor.get_attribute('innerText')
+            print('min_max_floor', min_max_floor)
+
+            buildingType = driver.find_element_by_xpath('/html/body/div[1]/div/div[2]/div/table/tbody/tr[1]/td[1]')
+            buildingType = buildingType.get_attribute('innerText')
+            print('buildingType', buildingType)
+
+            constructionCompany = driver.find_element_by_xpath(
+                '/html/body/div[1]/div/div[2]/div/table/tbody/tr[1]/td[2]')
+            constructionCompany = constructionCompany.get_attribute('innerText')
+            print('constructionCompany', constructionCompany)
+
+            fuel = driver.find_element_by_xpath('/html/body/div[1]/div/div[2]/div/table/tbody/tr[1]/td[4]')
+            fuel = fuel.get_attribute('innerText')
+            print('fuel', fuel)
+
+            complex_type = driver.find_element_by_xpath('/html/body/div[1]/div/div[2]/div/table/tbody/tr[2]/td[1]')
+            complex_type = complex_type.get_attribute('innerText')
+            print('complex_type', complex_type)
+
+            # 용적률
+            floorAreaRatio = driver.find_element_by_xpath('/html/body/div[1]/div/div[2]/div/table/tbody/tr[2]/td[2]')
+            floorAreaRatio = floorAreaRatio.get_attribute('innerText')
+            print('floorAreaRatio', floorAreaRatio)
+
+            # 건폐율
+            dryWasteRate = driver.find_element_by_xpath('/html/body/div[1]/div/div[2]/div/table/tbody/tr[2]/td[3]')
+            dryWasteRate = dryWasteRate.get_attribute('innerText')
+            print('dryWasteRate', dryWasteRate)
+
+            # 단지평당가 매매
+            complexSale = driver.find_element_by_xpath('/html/body/div[1]/div/div[5]/div[1]/div/div/div/div[1]/p[3]')
+            complexSale = complexSale.get_attribute('innerText')
+            print('complexSale', complexSale)
+
+            # 단지평당가 전세
+            complexPrice = driver.find_element_by_xpath('/html/body/div[1]/div/div[5]/div[1]/div/div/div/div[1]/p[5]')
+            complexPrice = complexPrice.get_attribute('innerText')
+            print('complexPrice', complexPrice)
+
+            areaSale = driver.find_element_by_xpath('/html/body/div[1]/div/div[5]/div[1]/div/div/div/div[2]/p[3]')
+            areaSale = areaSale.get_attribute('innerText')
+            print('areaSale', areaSale)
+
+            areaPrice = driver.find_element_by_xpath('/html/body/div[1]/div/div[5]/div[1]/div/div/div/div[2]/p[5]')
+            areaPrice = areaPrice.get_attribute('innerText')
+            print('areaPrice', areaPrice)
+
+            div_list = driver.find_elements_by_xpath('/html/body/div[1]/div/div[3]/div/div/div')
+
+            complex_image_list = []
+
+            for i, url in enumerate(div_list):
+                try:
+                    cls_name = url.get_attribute('class')
+                    cls_name = cls_name.split(' ')
+                    cls_name = cls_name[1]
+                    photo = driver.execute_script(
+                        f'return window.getComputedStyle(document.querySelector(".{cls_name}"),":after").getPropertyValue("background")')
+                    recommend_image = re.findall(r'"(.*?)"', photo)
+                    complex_image_list.append(recommend_image[0])
+                except IndexError:
+                    pass
+
+            print('complex_image_list >>', complex_image_list)
+            complex_obj, __ = ComplexInformation.objects.get_or_create(
+                complexName=apart_name,
+                buildDate=made,
+                totalCitizen=total_citizen,
+                personalPark=personal_park,
+                totalNumber=total_number,
+                heatingSystem=heating_system,
+                minMaxFloor=min_max_floor,
+                buildingType=buildingType,
+                constructionCompany=constructionCompany,
+                fuel=fuel,
+                complexType=complex_type,
+                floorAreaRatio=floorAreaRatio,
+                dryWasteRate=dryWasteRate,
+                complexSale=complexSale,
+                complexPrice=complexPrice,
+                areaSale=areaSale,
+                areaPrice=areaPrice,
+            )
+            print(complex_obj)
+            for index, image in enumerate(complex_image_list):
+                try:
+                    COMPLEX_IMAGE_DIR = os.path.join(MEDIA_ROOT, f'.posts/complex{complex_obj.pk}/')
+                    if not os.path.exists(COMPLEX_IMAGE_DIR):
+                        os.makedirs(COMPLEX_IMAGE_DIR, exist_ok=True)
+
+                    # 이미지 생성
+                    image_save_name = os.path.join(COMPLEX_IMAGE_DIR, f'{index}.jpg')
+                    urllib.request.urlretrieve(image, image_save_name)
+                    f = open(os.path.join(COMPLEX_IMAGE_DIR, f'{index}.jpg'), 'rb')
+                    ComplexImage.objects.get_or_create(
+                        image=File(f),
+                        complex=complex_obj,
+                    )
+                    f.close()
+                except FileExistsError:
+                    print('이미 존재하는 파일')
+            time.sleep(1)
+            # 추천 단지 시작
+            # 아파트 단지 이미지 div
+            recommend_div_list = driver.find_elements_by_xpath(
+                '/html/body/div[1]/div/div[5]/div[8]/div/ul/li/div/a/div')
+            # 추천 단지 아파트 이름
+            recommend_apat_name_list = driver.find_elements_by_xpath(
+                '/html/body/div[1]/div/div[5]/div[8]/div/ul/li/div/a/p[1]')
+            # 추천 단지 아파트
+            recommend_apat_type_list = driver.find_elements_by_xpath(
+                '/html/body/div[1]/div/div[5]/div[8]/div/ul/li/div/a/p[2]/span[1]')
+            # 추천 단지 총 세대 수
+            recommend_apat_total_citizen_list = driver.find_elements_by_xpath(
+                '/html/body/div[1]/div/div[5]/div[8]/div/ul/li/div/a/p[2]/span[2]')
+            # 추천 단지 설립일자 리스트
+            recommend_apat_build_date_list = driver.find_elements_by_xpath(
+                '/html/body/div[1]/div/div[5]/div[8]/div/ul/li/div/a/p[2]/span[3]')
+            # 추천 단지 주소 리스트
+            recommend_apat_address_list = driver.find_elements_by_xpath(
+                '/html/body/div[1]/div/div[5]/div[8]/div/ul/li/div/a/p[3]')
+            # 추천 단지 정보 링크 리스트
+            recommend_apat_link_list = driver.find_elements_by_xpath(
+                '/html/body/div[1]/div/div[5]/div[8]/div/ul/li/ul/li/a')
+
+            for i, url in enumerate(recommend_div_list):
+                cls_name = url.get_attribute('class')
+                cls_name = cls_name.split(' ')
+                cls_name = cls_name[1]
+
+                photo = driver.execute_script(
+                    f'return window.getComputedStyle(document.querySelector(".{cls_name}"),":before").getPropertyValue("background")')
+                recommend_image_url = re.findall(r'"(.*?)"', photo)
+                print('추천단지 이미지', recommend_image_url[0])
+                recommend_apat_name = recommend_apat_name_list[i].get_attribute('innerText')
+                print('추천단지 아파트 이름', recommend_apat_name)
+                recommend_apat_type = recommend_apat_type_list[i].get_attribute('innerText')
+                print('추천단지 아파트 타입', recommend_apat_type)
+                recommend_apat_total_citizen = recommend_apat_total_citizen_list[i].get_attribute('innerText')
+                print('추천 단지 총 세대 수', recommend_apat_total_citizen)
+                recommend_apat_build_date = recommend_apat_build_date_list[i].get_attribute('innerText')
+                print('추천 단지 설립 일자', recommend_apat_build_date)
+                recommend_apat_address = recommend_apat_address_list[i].get_attribute('innerText')
+                print('추천 단지 주소', recommend_apat_address)
+                recommend_apat_link = recommend_apat_link_list[i].get_attribute('href')
+                print('추천 단지 해당 링크', recommend_apat_link)
+
+                # 이미지 생성
+                try:
+                    RECOMMEND_IMAGE_DIR = os.path.join(MEDIA_ROOT,
+                                                       f'.posts/{apart_name}/')
+                    if not os.path.exists(RECOMMEND_IMAGE_DIR):
+                        os.makedirs(RECOMMEND_IMAGE_DIR, exist_ok=True)
+
+                    # 이미지 생성
+                    image_save_name = os.path.join(RECOMMEND_IMAGE_DIR, f'{recommend_apat_name}.jpg')
+                    urllib.request.urlretrieve(recommend_image_url[0], image_save_name)
+                    f = open(os.path.join(RECOMMEND_IMAGE_DIR, f'{recommend_apat_name}.jpg'), 'rb')
+                    RecommendComplex.objects.get_or_create(
+                        complex=complex_obj,
+                        image=File(f),
+                        name=recommend_apat_name,
+                        type=recommend_apat_type,
+                        totalCitizen=recommend_apat_total_citizen,
+                        buildDate=recommend_apat_build_date,
+                        address=recommend_apat_address,
+                        link=recommend_apat_link,
+                    )
+                    f.close()
+
+                except FileExistsError:
+                    print('이미 존재하는 파일')
+                #
+
+                print('\n')
+        else:
+            complex_obj = None
+
+        driver.get(dabang_url)
+        time.sleep(1)
+        # 아파트 단지 정보 종료.
+
         post = PostRoom.objects.get_or_create(
             broker=broker_ins[0],
+            complex=complex_obj,
             type=post_type,
             description=description,
             address=address_ins,
             salesForm=salesform_ins,
+            lat=lat,
+            lng=lng,
             floor=floor,
             totalFloor=totalFloor,
             areaChar=areaChar,
@@ -792,9 +1034,11 @@ def postFind():
             shortRent=shortRent,
             parkingDetail=parkingDetail,
             parkingTF=parkingTF,
+            parkingPay=parkingPay,
             living_expenses=living_expenses,
             living_expenses_detail=living_expenses_detail,
-            MoveInChar=MoveInChar,
+            moveInChar=moveInChar,
+            moveInDate=moveInDate,
             heatingType=heatingType,
             pet=pet,
             elevator=elevator,
@@ -862,16 +1106,11 @@ def postFind():
             else:
                 print('빈 리스트')
 
-        POSTS_DIR = os.path.join(MEDIA_ROOT, '.posts')
-
-        if not os.path.exists(POSTS_DIR):
-            os.makedirs(POSTS_DIR, exist_ok=True)
-
         if image_list:
             for index, image_url in enumerate(image_list):
                 print('image_url>> ', image_url)
                 try:
-                    POSTS_IMAGE_DIR = os.path.join(MEDIA_ROOT, f'.posts/{post[0].pk}/')
+                    POSTS_IMAGE_DIR = os.path.join(MEDIA_ROOT, f'.posts/postroom{post[0].pk}/')
                     if not os.path.exists(POSTS_IMAGE_DIR):
                         os.makedirs(POSTS_IMAGE_DIR, exist_ok=True)
 
@@ -888,5 +1127,6 @@ def postFind():
                     print('이미 존재하는 파일')
 
         # print('이미지 업로드 끝')
-        print('게시글 하나 크롤링 완성 pk:', post_index)
+        print('게시글 하나 크롤링 완성 pk:', post_index, '-========================================== \n ')
+
     driver.close()

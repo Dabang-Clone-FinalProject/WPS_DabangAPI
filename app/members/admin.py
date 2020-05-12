@@ -1,25 +1,21 @@
 from django.contrib import admin
 
 # Register your models here.
-from django.contrib.auth import get_user_model
-
-from members.models import SocialLogin
-from posts.models import SalesForm, AdministrativeDetail, PostAddress, SecuritySafetyFacilities
-
-User = get_user_model()
+from members.models import User, RecentlyPostList, ContactToBroker
 
 
 class UserAdmin(admin.ModelAdmin):
-    search_fields = ('id', 'username', 'social')
-    list_display = ['id', 'username']
-
-    # def social(self, obj):
-    #     return ' '.join([])
+    search_fields = ('id', 'username',)
 
 
-class SocialLoginAdmin(admin.ModelAdmin):
-    list_display = ['pk', 'type']
+class RecentlyPostListAdmin(admin.ModelAdmin):
+    list_display = ['pk', 'user', 'post']
+
+
+class ContactToBrokerAdmin(admin.ModelAdmin):
+    list_display = ['pk', 'user', 'broker']
 
 
 admin.site.register(User, UserAdmin)
-admin.site.register(SocialLogin, SocialLoginAdmin)
+admin.site.register(RecentlyPostList, RecentlyPostListAdmin)
+admin.site.register(ContactToBroker, ContactToBrokerAdmin)

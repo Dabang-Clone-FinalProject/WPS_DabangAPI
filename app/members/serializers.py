@@ -1,19 +1,17 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
-from rest_framework import serializers, permissions
-from rest_framework.response import Response
-from rest_framework_jwt.settings import api_settings
+from rest_framework import serializers
+
+from posts.serializers import PostListSerializer, BrokerSerializer, PostLikeUserSerializer
 
 User = get_user_model()
-
-JWT_PAYLOAD_HANDLER = api_settings.JWT_PAYLOAD_HANDLER
-JWT_ENCODE_HANDLER = api_settings.JWT_ENCODE_HANDLER
 
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
+            'pk',
             'username',
             'password',
             'email',
@@ -25,19 +23,17 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    posts = PostListSerializer(many=True, read_only=True)
+    brokers = BrokerSerializer(many=True, read_only=True, )
+    postLike = PostLikeUserSerializer(source='postlike_set', many=True, read_only=True, )
+
     class Meta:
         model = User
         fields = [
             'pk',
-            'introduce',
-        ]
-
-
-class SignUpViewSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = [
-            'username',
-            'password',
-            'email',
+            'phone',
+            'profileImage',
+            'posts',
+            'brokers',
+            'postLike',
         ]

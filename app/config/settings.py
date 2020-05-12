@@ -9,28 +9,27 @@ https://docs.djangoproject.com/en/3.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.0/ref/settings/
 """
-import datetime
 import json
 import os
 from datetime import timedelta
 
-
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
-import sentry_sdk
-from sentry_sdk.integrations.django import DjangoIntegration
-
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 ROOT_DIR = os.path.dirname(BASE_DIR)
 
+TEMPLATES_DIR = os.path.join(BASE_DIR, 'templates')
+
+# STATIC_DIR = os.path.join(BASE_DIR, 'static')
+# STATICFILES_DIRS = [
+#     STATIC_DIR,
+# ]
 # 각 applications들의 static/폴더, STATICFILE_DIRS의 폴더들이 가진 정적파일들을 모을 폴더
 STATIC_ROOT = os.path.join(ROOT_DIR, '.static')
 STATIC_URL = '/static/'
-TEMPLATES_DIR = os.path.join(BASE_DIR, 'templates')
 
 MEDIA_ROOT = os.path.join(ROOT_DIR, '.media')
 MEDIA_URL = '/media/'
-
 
 # secret.json 불러오기
 SECRETS_FULL = json.load(open(os.path.join(ROOT_DIR, 'secrets.json')))
@@ -41,13 +40,13 @@ FACEBOOK_APP_ID = SECRETS["FACEBOOK_APP_ID"]
 FACEBOOK_APP_SECRET = SECRETS["FACEBOOK_APP_SECRET"]
 KAKAO_APP_ID = SECRETS['KAKAO_APP_ID']
 
-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = [
     '*',
 ]
+
 
 # django-storages
 # Django의 FileStorage로 S3Boto3Storage(AWS의 S3)를 사용
@@ -64,8 +63,8 @@ AUTH_USER_MODEL = 'members.User'
 # Application definition
 
 INSTALLED_APPS = [
+
     'posts.apps.PostsConfig',
-    'salesinlots.apps.SalesinlotsConfig',
     'members.apps.MembersConfig',
 
     'django.contrib.admin',
@@ -77,29 +76,18 @@ INSTALLED_APPS = [
 
     'sentry_sdk',
     'rest_framework',
+
+    'django_extensions',
     'rest_framework.authtoken',
     'debug_toolbar',
     'psycopg2',
     'selenium',
     'pandas',
-    'django_extensions',
+    'boto3',
+    'storages',
+    'imagekit',
 ]
-
-MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'debug_toolbar.middleware.DebugToolbarMiddleware',
-]
-
-INTERNAL_IPS = [
-    '127.0.0.1',
-]
-
+# djangorestframework-jwt
 JWT_AUTH = {
     'JWT_ENCODE_HANDLER':
         'rest_framework_jwt.utils.jwt_encode_handler',
@@ -112,7 +100,7 @@ JWT_AUTH = {
     'JWT_RESPONSE_PAYLOAD_HANDLER':
         'rest_framework_jwt.utils.jwt_response_payload_handler',
 
-    'JWT_SECRET_KEY': 'SECRET_KEY',
+    'JWT_SECRET_KEY': SECRET_KEY,
     'JWT_GET_USER_SECRET_KEY': None,
     'JWT_PUBLIC_KEY': None,
     'JWT_PRIVATE_KEY': None,
@@ -128,11 +116,28 @@ JWT_AUTH = {
     'JWT_AUTH_HEADER_PREFIX': 'Bearer',
     'JWT_AUTH_COOKIE': None,
 }
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        #  소셜로그인이 아닌 인증방식에선 해당 authencation 필요
         'rest_framework_jwt.authentication.JSONWebTokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
-    )
+    ),
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+    ),
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
+    'PAGE_SIZE': 100,
 }
 
 ROOT_URLCONF = 'config.urls'
@@ -150,6 +155,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'social_django.context_processors.backends',
+                'social_django.context_processors.login_redirect',
             ],
         },
     },
@@ -157,12 +164,18 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+AUTHENTICATION_BACKENDS = (
+    'django.contrib.auth.backends.ModelBackend',  # <- 디폴트 모델 백엔드
+
+)
+
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
+
 DATABASES = {
-     'default': {
+    'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3')
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
     }
 }
 
@@ -177,19 +190,6 @@ DATABASES = {
 #     }
 # }
 
-sentry_sdk.init(
-    dsn="https://3d93f78103834761aeba8a0dec24c31e@sentry.io/5175838",
-    integrations=[DjangoIntegration()],
-
-    # If you wish to associate users to errors (assuming you are using
-    # django.contrib.auth) you may enable sending PII data.
-    send_default_pii=True
-)
-
-AUTHENTICATION_BACKENDS = (
-    'django.contrib.auth.backends.ModelBackend',  # <- 디폴트 모델 백엔드
-
-)
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
 
@@ -211,7 +211,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/3.0/topics/i18n/
 
-LANGUAGE_CODE = 'ko-kr'
+LANGUAGE_CODE = 'ko-KR'
 
 TIME_ZONE = 'Asia/Seoul'
 

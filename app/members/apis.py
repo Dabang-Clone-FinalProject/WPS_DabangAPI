@@ -1,22 +1,24 @@
+import json
+
 import requests
 from django.contrib.auth import get_user_model, authenticate
 from django.contrib.auth.models import User
-from rest_framework import status
-from rest_framework import viewsets
-from rest_framework.authtoken.models import Token
-from rest_framework.decorators import action
-from rest_framework.exceptions import AuthenticationFailed
+from django.http import HttpResponse
+from rest_framework import viewsets, status
+from rest_framework.decorators import action, api_view
+
 from rest_framework.permissions import AllowAny
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_jwt.settings import api_settings
 
-from members.models import SocialLogin
-from members.serializers import UserSerializer, SignUpViewSerializer, UserProfileSerializer
+from members.models import SocialLogin, RecentlyPostList, ContactToBroker
+from members.serializers import UserSerializer, UserProfileSerializer
+from posts.models import PostRoom, Broker
+from posts.serializers import PostListSerializer
 
 User = get_user_model()
-
 JWT_PAYLOAD_HANDLER = api_settings.JWT_PAYLOAD_HANDLER
 JWT_ENCODE_HANDLER = api_settings.JWT_ENCODE_HANDLER
 
@@ -63,14 +65,14 @@ class UserModelViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['POST'])
     def jwt(self, request):
-        username = request.POST.get('email')
-        userpass = request.POST.get('password')
+        username = request.data.get('username')
+        userpass = request.data.get('password')
         user = authenticate(username=username, password=userpass)
         payload = JWT_PAYLOAD_HANDLER(user)
         jwt_token = JWT_ENCODE_HANDLER(payload)
         if user is not None:
             data = {
-                'jwt': jwt_token,
+                'token': jwt_token,
                 'user': UserSerializer(user).data
             }
             return Response(data)
@@ -78,7 +80,7 @@ class UserModelViewSet(viewsets.ModelViewSet):
 
 class KakaoJwtTokenView(APIView):
     def post(self, request):
-        access_token = request.POST.get('access_token')
+        access_token = request.data.get('accessToken')
         url = 'https://kapi.kakao.com/v2/user/me'
         headers = {
             'Authorization': f'Bearer {access_token}',
@@ -119,7 +121,7 @@ class FacebookJwtToken(APIView):
     api_me = f'{api_base}/me'
 
     def post(self, request):
-        access_token = request.POST.get('access_token')
+        access_token = request.data.get('accessToken')
         params = {
             'access_token': access_token,
             'fields': ','.join([
@@ -155,36 +157,71 @@ class FacebookJwtToken(APIView):
         return Response(data)
 
 
-class SignUpView(APIView):
-    queryset = User.objects.all()
-    serializer_class = SignUpViewSerializer
+@api_view()
+def getRecentlyPostListView(request):
+    post = request.data.get('post')
 
-    def post(self, request):
-        serializer = SignUpViewSerializer(data=request.data)
-        if serializer.is_valid():
-            instance = serializer.save()
-            instance.set_password(instance.password)
-            instance.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+    post = int(post)
+    post = PostRoom.objects.get(pk=post)
+    dump = RecentlyPostList.objects.filter(user=request.user, post=post)
+    data = {
+        'message': "이미 최신글 리스트에 존재하는 게시글 입니다."
+    }
+    if dump:
+        # social_user = RecentlyPostList.objects.filter(user=request.user.pk)
+        # print(social_user)
+        return Response(
+            data, status=status.HTTP_400_BAD_REQUEST
+        )
+    while True:
+        social_user = RecentlyPostList.objects.filter(user=request.user.pk)
+        user_post_count = len(social_user)
+
+        if user_post_count >= 5:
+            social_user[0].delete()
         else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            break
+    RecentlyPostList.objects.get_or_create(
+        user=request.user,
+        post=post,
+    )
+    # social_user = RecentlyPostList.objects.filter(user=request.user.pk)
+    # print(social_user)
+    data = {
+        "message": "최근 유저 정보 리스트에 추가되었습니다."
+    }
+    return Response(data, status=status.HTTP_200_OK)
 
-    def get(self, request, format=None):
-        queryset = User.objects.all()
-        serializer = SignUpViewSerializer(queryset, many=True)
-        return Response(serializer.data)
 
+@api_view()
+def getContactToBroker(request):
+    broker = request.data.get('broker')
+    broker = int(broker)
+    broker = Broker.objects.get(pk=broker)
+    record = ContactToBroker.objects.filter(user=request.user, broker=broker)
+    if record:
+        data = {
+            'message': '이미 연락했던 부동산 입니다.'
+        }
+        user_list = ContactToBroker.objects.filter(user=request.user.pk)
+        print(user_list)
+        return Response(data, status=status.HTTP_400_BAD_REQUEST)
+    while True:
+        user_list = ContactToBroker.objects.filter(user=request.user.pk)
+        user_count_list = len(user_list)
 
-class AuthTokenView(APIView):
-    def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
-        user = authenticate(username=username, password=password)
-        if user:
-            token, __ = Token.objects.get_or_create(user=user)
-            data = {
-                # 데이터의 형태로 담아서 보내줌.
-                'token': token.key,
-            }
-            return Response(data)
-        raise AuthenticationFailed()
+        if user_count_list >= 5:
+            user_list[0].delete()
+        else:
+            break
+
+    ContactToBroker.objects.get_or_create(
+        user=request.user,
+        broker=broker,
+    )
+    data = {
+        "message": "연락한 부동산 리스트에 추가되었습니다."
+    }
+    user_list = ContactToBroker.objects.filter(user=request.user.pk)
+    print(user_list)
+    return Response(data, status=status.HTTP_200_OK)

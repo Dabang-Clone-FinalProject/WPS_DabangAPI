@@ -1,5 +1,6 @@
 /requirements.txt
 /secrets.json
+.media
 
 # Created by https://www.gitignore.io/api/git,linux,macos,django,python,windows,pycharm+all,jupyternotebooks
 # Edit at https://www.gitignore.io/?templates=git,linux,macos,django,python,windows,pycharm+all,jupyternotebooks
