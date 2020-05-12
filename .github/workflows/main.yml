@@ -39,8 +39,8 @@ jobs:
     - name: Install Python packages
       run: ~/.poetry/bin/poetry install
 
-    - name: pytest-cov 
-      run: ~/.poetry/bin/poetry run pytest --cov app
+#     - name: pytest-cov 
+#       run: ~/.poetry/bin/poetry run pytest --cov app
       
-    - name: codecov
-      run: ~/.poetry/bin/poetry run codecov
+#     - name: codecov
+#       run: ~/.poetry/bin/poetry run codecov
